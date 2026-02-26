@@ -16,7 +16,9 @@ export function LoginForm() {
   const location = useLocation();
   const { addToast } = useToast();
 
-  const from = location.state?.from?.pathname || '/';
+  const from = location.state?.from?.pathname
+    || sessionStorage.getItem('redirectAfterLogin')
+    || '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,6 +27,7 @@ export function LoginForm() {
 
     try {
       await login(email, password);
+      sessionStorage.removeItem('redirectAfterLogin');
       addToast('Welcome back!', 'success');
       navigate(from, { replace: true });
     } catch (err) {

@@ -1,6 +1,11 @@
 import db from '../config/database.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { v4 as uuidv4 } from 'uuid';
+
+// Strip HTML tags and trim whitespace to prevent stored XSS
+function sanitizeText(value) {
+  if (typeof value !== 'string') return value;
+  return value.replace(/<[^>]*>/g, '').trim().slice(0, 500);
+}
 
 function generateOrderNumber() {
   const year = new Date().getFullYear();
@@ -28,12 +33,15 @@ export function createOrder(req, res, next) {
       return next(new AppError('Customer name and phone are required', 400));
     }
 
+    const safeName = sanitizeText(customer_name);
+    const safePhone = String(customer_phone).replace(/[^\d+\-\s()]/g, '').trim();
+
     if (!delivery_type || !['pickup', 'carryout'].includes(delivery_type)) {
       return next(new AppError('Delivery type must be pickup or carryout', 400));
     }
 
     if (delivery_type === 'carryout' && !table_number) {
-      return next(new AppError('Table number is required for carryout', 400));
+      return next(new AppError('Table number is required for dine-in orders', 400));
     }
 
     // Calculate subtotal and validate items
@@ -47,7 +55,10 @@ export function createOrder(req, res, next) {
         return next(new AppError(`Item with id ${item.menu_item_id} not found or unavailable`, 400));
       }
 
-      const quantity = item.quantity || 1;
+      const quantity = parseInt(item.quantity) || 1;
+      if (quantity < 1 || quantity > 50) {
+        return next(new AppError(`Invalid quantity for item ${menuItem.name}. Must be between 1 and 50.`, 400));
+      }
       const itemSubtotal = menuItem.price * quantity;
       subtotal += itemSubtotal;
       maxPrepTime = Math.max(maxPrepTime, menuItem.prep_time_minutes);
@@ -58,7 +69,7 @@ export function createOrder(req, res, next) {
         item_price: menuItem.price,
         quantity,
         subtotal: itemSubtotal,
-        special_instructions: item.special_instructions || null
+        special_instructions: item.special_instructions ? sanitizeText(item.special_instructions) : null
       });
     }
 
@@ -73,7 +84,7 @@ export function createOrder(req, res, next) {
         AND (valid_from IS NULL OR valid_from <= datetime('now'))
         AND (valid_until IS NULL OR valid_until >= datetime('now'))
         AND (usage_limit IS NULL OR times_used < usage_limit)
-      `).get(discount_code);
+      `).get(discount_code.toUpperCase());
 
       if (discount) {
         if (subtotal >= discount.min_order_amount) {
@@ -124,9 +135,9 @@ export function createOrder(req, res, next) {
         order_number, user_id, customer_name, customer_phone, table_number,
         delivery_type, subtotal, discount_id, discount_amount, points_earned,
         points_redeemed, tax_amount, total_amount, status, estimated_ready_time, payment_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, 'paid')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 'pending')
     `).run(
-      orderNumber, userId, customer_name, customer_phone, table_number || null,
+      orderNumber, userId, safeName, safePhone, table_number ? sanitizeText(table_number) : null,
       delivery_type, subtotal, discountId, discountAmount + pointsDiscount, pointsEarned,
       pointsRedeemed, taxAmount, totalAmount, estimatedReadyTime
     );
@@ -143,22 +154,14 @@ export function createOrder(req, res, next) {
       insertItem.run(orderId, item.menu_item_id, item.item_name, item.item_price, item.quantity, item.subtotal, item.special_instructions);
     }
 
-    // Credit reward points to user
-    if (userId && pointsEarned > 0) {
-      db.prepare('UPDATE users SET reward_points = reward_points + ?, total_orders = total_orders + 1 WHERE id = ?').run(pointsEarned, userId);
-      db.prepare(`
-        INSERT INTO reward_transactions (user_id, order_id, points, transaction_type, description)
-        VALUES (?, ?, ?, 'earned', ?)
-      `).run(userId, orderId, pointsEarned, `Earned from order ${orderNumber}`);
-    }
-
-    // Record points redemption transaction
+    // Record points redemption transaction (points are deducted immediately on order creation)
     if (pointsRedeemed > 0) {
       db.prepare(`
         INSERT INTO reward_transactions (user_id, order_id, points, transaction_type, description)
         VALUES (?, ?, ?, 'redeemed', ?)
       `).run(userId, orderId, -pointsRedeemed, `Redeemed for order ${orderNumber}`);
     }
+    // Points earning is credited when payment is confirmed (see confirmOrderPayment)
 
     res.status(201).json({
       success: true,
@@ -173,7 +176,7 @@ export function createOrder(req, res, next) {
           points_redeemed: pointsRedeemed,
           estimated_ready_time: estimatedReadyTime,
           delivery_type,
-          status: 'confirmed'
+          status: 'pending'
         }
       }
     });
@@ -207,6 +210,83 @@ export function getOrderByNumber(req, res, next) {
       }
     }
   });
+}
+
+export function updateOrderStatus(req, res, next) {
+  try {
+    const { orderNumber } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
+    if (!status || !validStatuses.includes(status)) {
+      return next(new AppError(`Status must be one of: ${validStatuses.join(', ')}`, 400));
+    }
+
+    const order = db.prepare('SELECT * FROM orders WHERE order_number = ?').get(orderNumber);
+    if (!order) {
+      return next(new AppError('Order not found', 404));
+    }
+
+    db.prepare('UPDATE orders SET status = ? WHERE order_number = ?').run(status, orderNumber);
+
+    res.json({
+      success: true,
+      data: { order_number: orderNumber, status }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export function confirmOrderPayment(req, res, next) {
+  try {
+    const { orderNumber } = req.params;
+    const { payment_id, payment_method } = req.body;
+
+    if (!payment_id) {
+      return next(new AppError('Payment ID is required', 400));
+    }
+
+    const order = db.prepare('SELECT * FROM orders WHERE order_number = ?').get(orderNumber);
+    if (!order) {
+      return next(new AppError('Order not found', 404));
+    }
+
+    if (order.payment_status === 'paid') {
+      return next(new AppError('Order payment already confirmed', 400));
+    }
+
+    db.prepare(
+      'UPDATE orders SET payment_status = ?, status = ? WHERE order_number = ?'
+    ).run('paid', 'confirmed', orderNumber);
+
+    const userId = order.user_id;
+    if (userId) {
+      const pointsEarned = order.points_earned;
+      if (pointsEarned > 0) {
+        db.prepare('UPDATE users SET reward_points = reward_points + ?, total_orders = total_orders + 1 WHERE id = ?')
+          .run(pointsEarned, userId);
+        db.prepare(`
+          INSERT INTO reward_transactions (user_id, order_id, points, transaction_type, description)
+          VALUES (?, ?, ?, 'earned', ?)
+        `).run(userId, order.id, pointsEarned, `Earned from order ${orderNumber}`);
+      } else {
+        db.prepare('UPDATE users SET total_orders = total_orders + 1 WHERE id = ?').run(userId);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        order_number: orderNumber,
+        payment_status: 'paid',
+        status: 'confirmed',
+        payment_id
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 }
 
 export function getMyOrders(req, res, next) {

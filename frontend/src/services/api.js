@@ -24,6 +24,11 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      // Save current path so we can redirect back after login
+      const currentPath = window.location.pathname + window.location.search;
+      if (currentPath !== '/login') {
+        sessionStorage.setItem('redirectAfterLogin', currentPath);
+      }
       window.location.href = '/login';
     }
     return Promise.reject(error);
