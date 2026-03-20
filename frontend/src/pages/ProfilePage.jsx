@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { authService } from '../services/authService';
 import { orderService } from '../services/orderService';
 import { PointsBalance } from '../components/rewards/PointsBalance';
 import { OrderHistory } from '../components/order/OrderHistory';
@@ -8,9 +9,13 @@ import { Button } from '../components/common/Button';
 import { LoadingScreen } from '../components/common/Spinner';
 
 export function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', phone: '' });
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -25,6 +30,38 @@ export function ProfilePage() {
     };
     fetchOrders();
   }, []);
+
+  const handleEditStart = () => {
+    setEditForm({ name: user?.name || '', phone: user?.phone || '' });
+    setEditError('');
+    setEditing(true);
+  };
+
+  const handleEditCancel = () => {
+    setEditing(false);
+    setEditError('');
+  };
+
+  const handleEditSave = async () => {
+    if (!editForm.name.trim()) {
+      setEditError('Name is required');
+      return;
+    }
+    setSaving(true);
+    setEditError('');
+    try {
+      const updatedUser = await authService.updateProfile({
+        name: editForm.name.trim(),
+        phone: editForm.phone.trim() || null
+      });
+      updateUser(updatedUser);
+      setEditing(false);
+    } catch (error) {
+      setEditError(error.response?.data?.error || 'Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <LoadingScreen />;
 
@@ -47,15 +84,51 @@ export function ProfilePage() {
               </div>
             </div>
 
-            {user?.phone && (
-              <p className="text-sm text-gray-600 mb-4">
-                Phone: {user.phone}
-              </p>
+            {editing ? (
+              <div className="space-y-3 mb-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+                {editError && <p className="text-xs text-red-600">{editError}</p>}
+                <div className="flex gap-2">
+                  <Button fullWidth onClick={handleEditSave} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button variant="secondary" fullWidth onClick={handleEditCancel} disabled={saving}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {user?.phone && (
+                  <p className="text-sm text-gray-600 mb-2">
+                    Phone: {user.phone}
+                  </p>
+                )}
+                <p className="text-sm text-gray-600 mb-4">
+                  Total Orders: {user?.total_orders || 0}
+                </p>
+                <Button variant="outline" fullWidth onClick={handleEditStart} className="mb-2">
+                  Edit Profile
+                </Button>
+              </>
             )}
-
-            <p className="text-sm text-gray-600 mb-4">
-              Total Orders: {user?.total_orders || 0}
-            </p>
 
             <Button variant="secondary" fullWidth onClick={logout}>
               Logout
