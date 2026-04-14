@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Star Chicken - Instagram Post</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: #1a1a1a;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    .post {
+      width: 1080px;
+      height: 1080px;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(160deg, #1a0000 0%, #2d0a0a 30%, #8b0000 60%, #dc2626 100%);
+    }
+
+    /* Decorative circles */
+    .post::before {
+      content: '';
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(251, 191, 36, 0.15) 0%, transparent 70%);
+      top: -150px;
+      right: -150px;
+    }
+
+    .post::after {
+      content: '';
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(220, 38, 38, 0.3) 0%, transparent 70%);
+      bottom: -100px;
+      left: -100px;
+    }
+
+    /* Smoke/steam effect */
+    .smoke {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background:
+        radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 30% 60%, rgba(251,191,36,0.05) 0%, transparent 40%);
+      z-index: 1;
+    }
+
+    /* Top bar */
+    .top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, #fbbf24, #f59e0b, #fbbf24);
+      z-index: 10;
+    }
+
+    /* Logo area */
+    .logo-area {
+      position: absolute;
+      top: 35px;
+      left: 50px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 10;
+    }
+
+    .logo-icon {
+      width: 58px;
+      height: 58px;
+      background: linear-gradient(135deg, #dc2626, #f97316);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.5);
+    }
+
+    .logo-text {
+      color: #fff;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+
+    .logo-text span {
+      color: #fbbf24;
+    }
+
+    /* Rating badge */
+    .rating-badge {
+      position: absolute;
+      top: 45px;
+      right: 50px;
+      background: rgba(251, 191, 36, 0.15);
+      border: 1.5px solid rgba(251, 191, 36, 0.4);
+      border-radius: 30px;
+      padding: 8px 18px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 10;
+    }
+
+    .rating-badge .star {
+      color: #fbbf24;
+      font-size: 18px;
+    }
+
+    .rating-badge .score {
+      color: #fbbf24;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    /* Main headline */
+    .headline {
+      position: absolute;
+      top: 130px;
+      left: 50px;
+      right: 50px;
+      z-index: 10;
+    }
+
+    .headline h1 {
+      font-size: 62px;
+      font-weight: 900;
+      color: #fff;
+      line-height: 1.1;
+      text-transform: uppercase;
+      letter-spacing: -1px;
+    }
+
+    .headline h1 .highlight {
+      color: #fbbf24;
+      display: block;
+      font-size: 72px;
+    }
+
+    .headline .subtitle {
+      margin-top: 12px;
+      font-size: 20px;
+      color: rgba(255,255,255,0.7);
+      font-weight: 400;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    /* Food images grid */
+    .food-grid {
+      position: absolute;
+      bottom: 220px;
+      left: 50px;
+      right: 50px;
+      display: flex;
+      gap: 20px;
+      z-index: 10;
+    }
+
+    .food-card {
+      flex: 1;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 15px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+      transition: transform 0.3s;
+    }
+
+    .food-card img {
+      width: 100%;
+      height: 160px;
+      object-fit: contain;
+      filter: drop-shadow(0 8px 20px rgba(0,0,0,0.4));
+      margin-bottom: 10px;
+    }
+
+    .food-card .name {
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .food-card .price {
+      color: #fbbf24;
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    /* Promo banner */
+    .promo-banner {
+      position: absolute;
+      bottom: 110px;
+      left: 50px;
+      right: 50px;
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.1));
+      border: 1.5px solid rgba(251, 191, 36, 0.4);
+      border-radius: 16px;
+      padding: 18px 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+
+    .promo-left {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .promo-icon {
+      font-size: 32px;
+    }
+
+    .promo-text .code {
+      color: #fbbf24;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 2px;
+    }
+
+    .promo-text .desc {
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+      font-weight: 400;
+    }
+
+    .promo-right .discount {
+      color: #fff;
+      font-size: 36px;
+      font-weight: 900;
+      text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+    }
+
+    .promo-right .discount span {
+      color: #fbbf24;
+    }
+
+    /* Bottom bar */
+    .bottom-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 90px;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 50px;
+      z-index: 10;
+    }
+
+    .bottom-info {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+    }
+
+    .bottom-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.8);
+      font-size: 15px;
+    }
+
+    .bottom-item .icon {
+      font-size: 18px;
+    }
+
+    .order-btn {
+      background: linear-gradient(135deg, #dc2626, #ef4444);
+      color: #fff;
+      border: none;
+      padding: 14px 35px;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Poppins', sans-serif;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      box-shadow: 0 4px 20px rgba(220, 38, 38, 0.5);
+      cursor: pointer;
+    }
+
+    /* Decorative dots */
+    .dots {
+      position: absolute;
+      top: 120px;
+      right: 60px;
+      display: grid;
+      grid-template-columns: repeat(3, 8px);
+      gap: 8px;
+      z-index: 5;
+      opacity: 0.3;
+    }
+
+    .dots .dot {
+      width: 8px;
+      height: 8px;
+      background: #fbbf24;
+      border-radius: 50%;
+    }
+
+    /* Floating spice elements */
+    .spice-1 {
+      position: absolute;
+      top: 300px;
+      right: 40px;
+      font-size: 40px;
+      opacity: 0.15;
+      transform: rotate(25deg);
+      z-index: 2;
+    }
+
+    .spice-2 {
+      position: absolute;
+      bottom: 300px;
+      left: 30px;
+      font-size: 35px;
+      opacity: 0.1;
+      transform: rotate(-15deg);
+      z-index: 2;
+    }
+
+    /* Print helper */
+    @media print {
+      body { background: white; }
+      .post { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="post">
+    <div class="smoke"></div>
+    <div class="top-bar"></div>
+
+    <!-- Logo -->
+    <div class="logo-area">
+      <div class="logo-icon">🍗</div>
+      <div class="logo-text">STAR <span>CHICKEN</span></div>
+    </div>
+
+    <!-- Rating -->
+    <div class="rating-badge">
+      <span class="star">★</span>
+      <span class="score">4.2</span>
+    </div>
+
+    <!-- Decorative dots -->
+    <div class="dots">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+
+    <!-- Floating spices -->
+    <div class="spice-1">🌶️</div>
+    <div class="spice-2">🔥</div>
+
+    <!-- Headline -->
+    <div class="headline">
+      <h1>
+        ORDER<br>
+        <span class="highlight">ONLINE NOW</span>
+      </h1>
+      <div class="subtitle">Crispy • Fresh • Delivered to You</div>
+    </div>
+
+    <!-- Food Grid -->
+    <div class="food-grid">
+      <div class="food-card">
+        <img src="frontend/public/images/food/chicken-popcorn.png" alt="Chicken Popcorn">
+        <div class="name">Chicken Popcorn</div>
+        <div class="price">₹149</div>
+      </div>
+      <div class="food-card">
+        <img src="frontend/public/images/food/fried-chicken-pizza.png" alt="Fried Chicken Pizza">
+        <div class="name">Chicken Pizza</div>
+        <div class="price">₹299</div>
+      </div>
+      <div class="food-card">
+        <img src="frontend/public/images/food/zinger-burger.png" alt="Zinger Burger">
+        <div class="name">Zinger Burger</div>
+        <div class="price">₹179</div>
+      </div>
+      <div class="food-card">
+        <img src="frontend/public/images/food/family-feast.png" alt="Family Feast">
+        <div class="name">Family Feast</div>
+        <div class="price">₹599</div>
+      </div>
+    </div>
+
+    <!-- Promo Banner -->
+    <div class="promo-banner">
+      <div class="promo-left">
+        <div class="promo-icon">🎁</div>
+        <div class="promo-text">
+          <div class="code">WELCOME10</div>
+          <div class="desc">Use code on your first order</div>
+        </div>
+      </div>
+      <div class="promo-right">
+        <div class="discount"><span>10%</span> OFF</div>
+      </div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="bottom-bar">
+      <div class="bottom-info">
+        <div class="bottom-item">
+          <span class="icon">📍</span>
+          Nagarajupet
+        </div>
+        <div class="bottom-item">
+          <span class="icon">⏱️</span>
+          30-35 min
+        </div>
+        <div class="bottom-item">
+          <span class="icon">⭐</span>
+          Earn Rewards
+        </div>
+      </div>
+      <button class="order-btn">Order Now →</button>
+    </div>
+  </div>
+</body>
+</html>
