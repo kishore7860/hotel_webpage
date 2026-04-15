@@ -121,6 +121,17 @@ export function initializeDatabase() {
     )
   `);
 
+  // Indexes for frequently queried columns
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_discounts_code ON discounts(code)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_items_available ON menu_items(is_available)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_reward_transactions_user_id ON reward_transactions(user_id)`);
+
   console.log('Database initialized successfully');
 }
 

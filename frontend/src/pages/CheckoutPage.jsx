@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext';
 import { useOrder } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { orderService } from '../services/orderService';
+import { paymentService } from '../services/paymentService';
 import { DeliveryOptions } from '../components/checkout/DeliveryOptions';
 import { UserInfoForm } from '../components/checkout/UserInfoForm';
 import { PaymentSection } from '../components/checkout/PaymentSection';
@@ -16,13 +17,15 @@ import { validateRequired, validatePhone } from '../utils/validators';
 
 export function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, discount, pointsToRedeem, clearCart } = useCart();
+  const { items, discount, pointsToRedeem, total, clearCart } = useCart();
   const { deliveryType, customerInfo, setCurrentOrder } = useOrder();
   const { updateUser, user } = useAuth();
   const { addToast } = useToast();
 
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [errors, setErrors] = useState({});
+  const [paymentMethod, setPaymentMethod] = useState('card');
 
   if (items.length === 0) {
     return (
@@ -47,7 +50,7 @@ export function CheckoutPage() {
     }
 
     if (deliveryType === DELIVERY_TYPES.CARRYOUT && !validateRequired(customerInfo.table_number)) {
-      newErrors.table_number = 'Table number is required for carryout';
+      newErrors.table_number = 'Table number is required for dine-in';
     }
 
     setErrors(newErrors);
@@ -58,7 +61,10 @@ export function CheckoutPage() {
     if (!validate()) return;
 
     setLoading(true);
+    let order = null;
     try {
+      // Step 1: Create the order (status: pending, payment: pending)
+      setLoadingMessage('Creating order...');
       const orderData = {
         items: items.map(item => ({
           menu_item_id: item.id,
@@ -73,8 +79,26 @@ export function CheckoutPage() {
         points_to_redeem: pointsToRedeem
       };
 
-      const order = await orderService.createOrder(orderData);
-      setCurrentOrder(order);
+      order = await orderService.createOrder(orderData);
+
+      // Step 2: Process payment
+      setLoadingMessage('Processing payment...');
+      const payment = await paymentService.processPayment({
+        amount: order.total_amount,
+        payment_method: paymentMethod,
+        order_number: order.order_number
+      });
+
+      // Step 3: Confirm payment on the order (transitions order to confirmed + paid)
+      setLoadingMessage('Confirming payment...');
+      await paymentService.confirmOrderPayment(order.order_number, {
+        payment_id: payment.payment_id,
+        payment_method: paymentMethod
+      });
+
+      // Step 4: Update confirmed order state and clear cart
+      const confirmedOrder = { ...order, status: 'confirmed', payment_status: 'paid' };
+      setCurrentOrder(confirmedOrder);
       clearCart();
 
       if (user && order.points_earned) {
@@ -84,9 +108,16 @@ export function CheckoutPage() {
       addToast('Order placed successfully!', 'success');
       navigate(`/order-confirmation/${order.order_number}`);
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to place order', 'error');
+      const message = err.response?.data?.error || err.message || 'Something went wrong';
+      if (order) {
+        // Order was created but payment failed — tell user the order number
+        addToast(`Payment failed: ${message}. Your order ${order.order_number} was not confirmed.`, 'error');
+      } else {
+        addToast(`Failed to place order: ${message}`, 'error');
+      }
     } finally {
       setLoading(false);
+      setLoadingMessage('');
     }
   };
 
@@ -117,7 +148,7 @@ export function CheckoutPage() {
           </div>
 
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <PaymentSection />
+            <PaymentSection onPaymentMethodChange={setPaymentMethod} />
           </div>
         </div>
 
@@ -144,7 +175,7 @@ export function CheckoutPage() {
             onClick={handlePlaceOrder}
             disabled={loading}
           >
-            {loading ? 'Placing Order...' : 'Place Order'}
+            {loading ? loadingMessage || 'Processing...' : `Pay ${formatPrice(total)}`}
           </Button>
         </div>
       </div>
